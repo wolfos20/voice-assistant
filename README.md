@@ -1,11 +1,11 @@
-# Gemini Voice Assistant for Revolt Motors
+#  Voice Assistant for Revolt Motors
 
 This project replicates the Revolt Motors voice chatbot using the Gemini Live API. It features a conversational interface with real-time voice interaction, voice interruption support, and low response latency.
 
 ## 🔧 Tech Stack
 
 - **Frontend:** HTML, TailwindCSS, Web Speech API
-- **Backend:** Node.js, Express
+- **Backend:** Node.js
 - **AI API:** Gemini Live API (Google Generative AI)
 
 ---
