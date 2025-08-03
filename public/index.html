@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Gemini Voice Assistant - Server Connected</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    .listening .pulse {
+      animation: pulse 1.5s infinite;
+    }
+    .gradient-bg {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    .glass-effect {
+      backdrop-filter: blur(10px);
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    .volume-meter {
+      width: 200px;
+      height: 8px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .volume-bar {
+      height: 100%;
+      background: linear-gradient(90deg, #10b981, #f59e0b, #ef4444);
+      width: 0%;
+      transition: width 0.1s ease;
+    }
+  </style>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen flex flex-col">
+  <header class="bg-gray-800 py-4 px-6 shadow-lg border-b border-gray-700">
+    <div class="container mx-auto flex justify-between items-center">
+      <h1 class="text-2xl font-bold text-transparent bg-clip-text gradient-bg flex items-center">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 mr-2 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+        </svg>
+        Gemini Voice Assistant
+      </h1>
+      <div class="flex items-center gap-4">
+        <div class="text-center">
+          <div class="volume-meter">
+            <div id="volume-bar" class="volume-bar"></div>
+          </div>
+          <div class="text-xs text-gray-400 mt-1">Audio Level</div>
+        </div>
+        <div id="status-indicator" class="flex items-center glass-effect rounded-full px-3 py-1">
+          <span class="h-3 w-3 rounded-full bg-gray-500 mr-2"></span>
+          <span class="text-sm" id="connection-status">Connecting...</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="flex-1 container mx-auto py-8 px-4 flex flex-col items-center justify-center">
+    <div class="text-center mb-8">
+      <p class="text-gray-400 text-sm mb-2">Connected to Gemini AI with smart interruption</p>
+      <p class="text-gray-500 text-xs mb-4">Noise filtering prevents accidental interruptions</p>
+      <div class="flex justify-center gap-6 text-xs">
+        <div class="text-center">
+          <div class="text-green-400 font-semibold">Simple</div>
+          <div class="text-gray-500">Interruption</div>
+        </div>
+        <div class="text-center">
+          <div class="text-blue-400 font-semibold">70%</div>
+          <div class="text-gray-500">Confidence</div>
+        </div>
+        <div class="text-center">
+          <div class="text-purple-400 font-semibold">2+ Words</div>
+          <div class="text-gray-500">Required</div>
+        </div>
+      </div>
+    </div>
+    
+    <button id="listen-btn" aria-label="Start voice input"
+            class="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-full p-6 transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-indigo-400/50 focus:ring-offset-2 focus:ring-offset-gray-900 shadow-lg"
+            title="Click to start voice input">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+      </svg>
+    </button>
+
+    <div class="mt-8 text-center max-w-md">
+      <div id="debug-info" class="bg-gray-800 rounded-lg p-4 text-xs text-left">
+        <div class="text-yellow-400 mb-2 font-semibold">Activity Log:</div>
+        <div id="debug-content" class="space-y-1 text-gray-300">
+          <div>System starting...</div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      const listenBtn = document.getElementById('listen-btn');
+      const statusIndicator = document.getElementById('status-indicator');
+      const connectionStatus = document.getElementById('connection-status');
+      const volumeBar = document.getElementById('volume-bar');
+      const debugContent = document.getElementById('debug-content');
+      
+      let recognition;
+      let backgroundRecognition;
+      let isListening = false;
+      let synth = window.speechSynthesis;
+      let isConnected = false;
+      let isSpeaking = false;
+      let backgroundMonitoring = false;
+      
+      // Audio monitoring
+      let audioContext;
+      let analyser;
+      let microphone;
+      let dataArray;
+      
+      // Simple but effective thresholds
+      const CONFIDENCE_THRESHOLD = 0.7;
+      const INTERRUPTION_COOLDOWN = 1500; // 1.5 seconds
+      const MIN_WORDS = 2;
+      
+      let lastInterruptionTime = 0;
+      
+      function debugLog(message) {
+        const now = new Date().toLocaleTimeString();
+        const newDiv = document.createElement('div');
+        newDiv.textContent = `${now}: ${message}`;
+        debugContent.appendChild(newDiv);
+        
+        // Keep only last 6 messages
+        while (debugContent.children.length > 6) {
+          debugContent.removeChild(debugContent.firstChild);
+        }
+        debugContent.scrollTop = debugContent.scrollHeight;
+        console.log(`[Assistant] ${message}`);
+      }
+
+      async function checkConnection() {
+        try {
+          const response = await fetch('/chat', { method: 'HEAD' });
+          if (response.ok) {
+            connectionStatus.textContent = 'Connected to Gemini';
+            connectionStatus.previousElementSibling.classList.replace('bg-gray-500', 'bg-green-500');
+            isConnected = true;
+            debugLog('✅ Connected to Gemini AI server');
+          } else {
+            throw new Error('Server not responding');
+          }
+        } catch (err) {
+          connectionStatus.textContent = 'Server Offline';
+          connectionStatus.previousElementSibling.classList.replace('bg-gray-500', 'bg-red-500');
+          isConnected = false;
+          debugLog('❌ Server connection failed');
+        }
+      }
+
+      async function initAudioContext() {
+        try {
+          audioContext = new (window.AudioContext || window.webkitAudioContext)();
+          const stream = await navigator.mediaDevices.getUserMedia({ 
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true
+            }
+          });
+          
+          analyser = audioContext.createAnalyser();
+          analyser.fftSize = 256;
+          analyser.smoothingTimeConstant = 0.8;
+          microphone = audioContext.createMediaStreamSource(stream);
+          microphone.connect(analyser);
+          
+          dataArray = new Uint8Array(analyser.frequencyBinCount);
+          
+          debugLog('🎤 Audio monitoring initialized');
+          startAudioMonitoring();
+          
+          return true;
+        } catch (err) {
+          debugLog(`❌ Audio init failed: ${err.message}`);
+          return false;
+        }
+      }
+
+      function startAudioMonitoring() {
+        if (!analyser) return;
+        
+        analyser.getByteFrequencyData(dataArray);
+        const currentLevel = dataArray.reduce((sum, value) => sum + value, 0) / dataArray.length;
+        
+        // Update volume bar
+        const volumePercent = Math.min((currentLevel / 60) * 100, 100);
+        volumeBar.style.width = `${volumePercent}%`;
+        
+        requestAnimationFrame(startAudioMonitoring);
+      }
+
+      function initSpeechRecognition() {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+          alert('Speech recognition is not supported. Please use Chrome or Edge.');
+          return false;
+        }
+
+        // Main recognition
+        recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.interimResults = false;
+        recognition.lang = 'en-US';
+
+        recognition.onstart = () => {
+          isListening = true;
+          listenBtn.classList.add('listening');
+          listenBtn.classList.replace('from-indigo-600', 'from-red-500');
+          listenBtn.classList.replace('to-purple-600', 'to-red-600');
+          updateStatus('Listening...', 'red', true);
+          debugLog('🎧 Listening for speech...');
+
+          if (synth.speaking) {
+            synth.cancel();
+            isSpeaking = false;
+          }
+        };
+
+        recognition.onresult = (event) => {
+          const result = event.results[0];
+          const transcript = result[0].transcript.trim();
+          const confidence = result[0].confidence || 1.0;
+          
+          debugLog(`🗣️ "${transcript}" (${(confidence*100).toFixed(0)}%)`);
+          
+          if (confidence >= 0.6 || confidence === 1.0) {
+            sendMessage(transcript);
+          } else {
+            debugLog('❌ Low confidence, ignored');
+            setTimeout(restartListening, 1500);
+          }
+        };
+
+        recognition.onerror = (event) => {
+          if (event.error !== 'no-speech' && event.error !== 'aborted') {
+            debugLog(`❌ Recognition error: ${event.error}`);
+          }
+          stopListening();
+        };
+
+        recognition.onend = () => {
+          stopListening();
+        };
+
+        // Simplified background recognition for interruptions
+        backgroundRecognition = new SpeechRecognition();
+        backgroundRecognition.continuous = true;
+        backgroundRecognition.interimResults = true;
+        backgroundRecognition.lang = 'en-US';
+
+        backgroundRecognition.onresult = (event) => {
+          if (!isSpeaking) return;
+          
+          const result = event.results[event.results.length - 1];
+          if (!result.isFinal) return; // Only process final results
+          
+          const transcript = result[0].transcript.trim();
+          const confidence = result[0].confidence || 1.0;
+          const wordCount = transcript.split(' ').filter(word => word.length > 0).length;
+          
+          const now = Date.now();
+          const cooldownPassed = (now - lastInterruptionTime) > INTERRUPTION_COOLDOWN;
+          const goodConfidence = confidence >= CONFIDENCE_THRESHOLD || confidence === 1.0;
+          const enoughWords = wordCount >= MIN_WORDS;
+          
+          if (goodConfidence && enoughWords && cooldownPassed) {
+            debugLog(`⚡ INTERRUPT: "${transcript}"`);
+            
+            // Stop speech and switch to main recognition
+            synth.cancel();
+            isSpeaking = false;
+            stopBackgroundMonitoring();
+            lastInterruptionTime = now;
+            
+            setTimeout(() => {
+              if (!isListening) {
+                try {
+                  recognition.start();
+                } catch (err) {
+                  debugLog('Failed to start main recognition');
+                }
+              }
+            }, 200);
+          } else {
+            debugLog(`⏳ Ignored: "${transcript}" (${wordCount}w, ${(confidence*100).toFixed(0)}%)`);
+          }
+        };
+
+        backgroundRecognition.onerror = (event) => {
+          if (event.error !== 'no-speech' && event.error !== 'aborted') {
+            debugLog(`Background error: ${event.error}`);
+          }
+        };
+
+        backgroundRecognition.onend = () => {
+          if (backgroundMonitoring && isSpeaking) {
+            setTimeout(() => {
+              try {
+                if (backgroundMonitoring) {
+                  backgroundRecognition.start();
+                }
+              } catch (err) {
+                // Silently restart
+              }
+            }, 100);
+          }
+        };
+
+        debugLog('🎙️ Speech recognition ready');
+        return true;
+      }
+
+      function startBackgroundMonitoring() {
+        if (!backgroundRecognition || backgroundMonitoring) return;
+        
+        backgroundMonitoring = true;
+        setTimeout(() => {
+          if (backgroundMonitoring) {
+            try {
+              backgroundRecognition.start();
+              debugLog('🔍 Background monitoring started');
+            } catch (err) {
+              debugLog('Background start failed');
+            }
+          }
+        }, 300);
+      }
+
+      function stopBackgroundMonitoring() {
+        backgroundMonitoring = false;
+        if (backgroundRecognition) {
+          try {
+            backgroundRecognition.stop();
+          } catch (err) {
+            // Silent fail
+          }
+        }
+      }
+
+      function stopListening() {
+        isListening = false;
+        listenBtn.classList.remove('listening');
+        listenBtn.classList.replace('from-red-500', 'from-indigo-600');
+        listenBtn.classList.replace('to-red-600', 'to-purple-600');
+        updateStatus('Ready', 'green');
+      }
+
+      function restartListening() {
+        if (recognition && !isListening && !isSpeaking) {
+          try {
+            recognition.start();
+          } catch (err) {
+            debugLog('Restart failed');
+          }
+        }
+      }
+
+      function updateStatus(text, color, pulse = false) {
+        const dot = statusIndicator.querySelector('span');
+        dot.className = `h-3 w-3 rounded-full bg-${color}-500 mr-2 ${pulse ? 'pulse' : ''}`;
+        connectionStatus.textContent = text;
+      }
+
+      function speak(text) {
+        if (synth.speaking) synth.cancel();
+
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.rate = 0.9;
+        utterance.pitch = 1.0;
+        utterance.volume = 0.8;
+
+        const voices = synth.getVoices();
+        const preferredVoice = voices.find(voice =>
+          voice.lang.includes('en') &&
+          (voice.name.includes('Google') || voice.name.includes('Microsoft'))
+        ) || voices.find(voice => voice.lang.includes('en'));
+
+        if (preferredVoice) utterance.voice = preferredVoice;
+
+        utterance.onstart = () => {
+          isSpeaking = true;
+          updateStatus('Speaking...', 'blue', true);
+          debugLog('🗣️ Assistant speaking...');
+          
+          // Start background monitoring for interruptions
+          startBackgroundMonitoring();
+        };
+
+        utterance.onend = () => {
+          isSpeaking = false;
+          stopBackgroundMonitoring();
+          updateStatus('Ready', 'green');
+          debugLog('✅ Finished speaking');
+          
+          // Auto-restart listening
+          setTimeout(restartListening, 800);
+        };
+
+        utterance.onerror = () => {
+          isSpeaking = false;
+          stopBackgroundMonitoring();
+          updateStatus('Ready', 'green');
+          debugLog('❌ Speech error');
+        };
+
+        synth.speak(utterance);
+      }
+
+      async function sendMessage(message) {
+        if (!message.trim() || !isConnected) return;
+
+        debugLog(`📤 Sending: "${message}"`);
+        updateStatus('Thinking...', 'yellow', true);
+
+        try {
+          const response = await fetch('/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message })
+          });
+
+          if (!response.ok) {
+            throw new Error(`Server error: ${response.status}`);
+          }
+
+          const data = await response.json();
+          debugLog(`📥 Response received`);
+          speak(data.reply);
+          
+        } catch (err) {
+          debugLog(`❌ Error: ${err.message}`);
+          updateStatus('Error occurred', 'red');
+          setTimeout(() => {
+            updateStatus('Ready', 'green');
+            restartListening();
+          }, 2000);
+        }
+      }
+
+      listenBtn.addEventListener('click', async () => {
+        if (!audioContext) {
+          await initAudioContext();
+        }
+        
+        if (!recognition && !initSpeechRecognition()) return;
+
+        if (synth.speaking) {
+          synth.cancel();
+          isSpeaking = false;
+          stopBackgroundMonitoring();
+          debugLog('🛑 Manually stopped speech');
+        }
+
+        if (isListening) {
+          recognition.stop();
+        } else {
+          try {
+            recognition.start();
+          } catch (err) {
+            debugLog('Manual start failed');
+          }
+        }
+      });
+
+      // Initialize
+      await checkConnection();
+      
+      // Auto-initialize audio on first interaction
+      document.addEventListener('click', async () => {
+        if (!audioContext) {
+          await initAudioContext();
+        }
+      }, { once: true });
+
+      updateStatus(isConnected ? 'Ready' : 'Server Offline', isConnected ? 'green' : 'red');
+
+      if (synth.onvoiceschanged !== undefined) {
+        synth.onvoiceschanged = () => {};
+      }
+    });
+  </script>
+</body>
+</html>
