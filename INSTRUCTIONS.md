@@ -35,22 +35,8 @@ Navigate to: [http://localhost:3000](http://localhost:3000)
 
 1. Click the **mic button** to start speaking.
 2. The assistant will respond aloud using voice.
-3. To **interrupt**, simply say: **“stop”** (not just any sound).
+3. To **interrupt**, simply say: **“stop now ”** (not just any sound).
 4. The assistant will cancel the response and start listening again.
-
----
-
-## ⚠️ Troubleshooting
-
-- ❌ **“Endpoint not found”**  
-  → Make sure you're sending a POST request to `/chat` from the frontend.
-
-- ❌ **Voice not working**  
-  → Ensure microphone access is granted and `SpeechSynthesis` voices are loaded.
-
-- 🛑 **Assistant stops on noise**  
-  → Calibrate threshold or switch to "stop"-based interruption (already implemented).
-
 ---
 
 ## 🎥 What to Show in Demo Video
@@ -61,8 +47,3 @@ Navigate to: [http://localhost:3000](http://localhost:3000)
 4. Show that latency is low (1–2 seconds ideally).
 
 ---
-
-## 📩 Final Submission
-
-- Upload video to **Google Drive** (with public access).
-- Submit the **GitHub repo link** and **video link**.
