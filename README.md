@@ -16,7 +16,6 @@ This project replicates the Revolt Motors voice chatbot using the Gemini Live AP
 - 🔊 **AI-generated voice output**
 - ⏱️ **Low-latency responses**
 - 🛑 **Real-time interruption handling (say “stop” to interrupt)**
-- 🎧 **Background audio detection with calibrated threshold**
 - 🚘 **Domain-specific knowledge (Revolt Motors only)**
 
 ---
