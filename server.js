@@ -53,18 +53,30 @@ app.post('/chat', async (req, res) => {
     });
 
     // Create a chat session for better context handling
-    const chat = model.startChat({
-      history: [
-        {
-          role: "user",
-          parts: [{ text: "You are a helpful voice assistant. Keep your responses conversational, concise, and friendly. Avoid using markdown formatting in your responses since they will be spoken aloud." }],
-        },
-        {
-          role: "model",
-          parts: [{ text: "Hello! I'm your voice assistant. I'll keep my responses clear and conversational for easy listening. How can I help you today?" }],
-        },
-      ],
-    });
+   const chat = model.startChat({
+  history: [
+    {
+      role: "user",
+      parts: [{
+        text:
+`You are an AI voice assistant strictly trained to only answer questions related to Revolt Motors.
+
+- If a question is about Revolt Motors (its bikes, specs, service, prices, company, policies), respond helpfully.
+- If a question is about anything else (unrelated brands, personal advice, general topics), politely say:
+"I'm here to assist only with Revolt Motors information. Could you please ask something related to Revolt?"
+
+Avoid markdown formatting. Keep replies short, spoken-friendly, and polite.`
+      }]
+    },
+    {
+      role: "model",
+      parts: [{
+        text: "Hi! I’m your Revolt Motors assistant. Ask me anything about our electric bikes, service, or features!"
+      }]
+    }
+  ]
+});
+
 
     // Send message and get response
     const result = await chat.sendMessage(message);
