@@ -94,7 +94,7 @@ without using markdown formatting, since your responses are spoken aloud.
 ## 📹 Submission Requirements
 
 - ✅ **Demo Video**: [Google Drive Link (Public)](https://drive.google.com/your-demo-link)
-- ✅ **GitHub Repo**: [GitHub Link]([https://github.com/your-username/revolt-gemini-voice-bot](https://github.com/wolfos20/voice-assistant.git))
+- ✅ **GitHub Repo**: [GitHub Link]([(https://github.com/wolfos20/voice-assistant.git])
 
 ---
 
